@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flaskdeployment.fullname" . }}
+  labels:
+    {{- include "flaskdeployment.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "flaskdeployment.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "flaskdeployment.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "flaskdeployment.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python"]
+          args: ["-m", "flask", "run", "--host=0.0.0.0"]
+          env:
+            - name: FLASK_APP
+              value: api.py
+            - name: FLASK_ENV
+              value: development
+            - name: "MYSQL_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: mysql-config
+                  key: mysql-db-name
+            - name: DB_HOSTNAME
+              value: mysql-0.flask-app.svc
+            - name: "MYSQL_ROOT_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-root-password
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: mysql-config
+                  key: mysql-db-user
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

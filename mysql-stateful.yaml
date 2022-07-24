@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: flask-app
+spec:
+  replicas: 1
+  serviceName: mysql
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: mysql
+          image: mysql:8
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+          ports:
+            - name: mysql-port
+              protocol: TCP
+              containerPort: 3306
+          env:
+          - name: "MYSQL_USER"
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-config
+                key: mysql-db-user
+          - name: "MYSQL_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secret
+                key: mysql-password
+          - name: "MYSQL_DATABASE"
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-config
+                key: mysql-db-name
+          - name: "MYSQL_ROOT_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secret
+                key: mysql-root-password
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-persistent-storage
+        namespace: flask-app
+      spec:
+        storageClassName: manual
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: flask-app
+spec:
+  selector:
+    name: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: mysql-port
+      name: mysql

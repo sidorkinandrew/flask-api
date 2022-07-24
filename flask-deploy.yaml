@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: flask-app
+  name: flask-deployment
+  namespace: flask-app
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: flask-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+      - image: koteikin/flask-app:4
+        imagePullPolicy: Always
+        name: flask-app
+        command: ["python"]
+        args: ["-m", "flask", "run", "--host=0.0.0.0"]
+        env:
+          - name: FLASK_APP
+            value: api.py
+          - name: FLASK_ENV
+            value: development
+          - name: "MYSQL_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secret
+                key: mysql-password
+          - name: DB_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-config
+                key: mysql-db-name
+          - name: DB_HOSTNAME
+            value: mysql-0.flask-app.svc
+          - name: "MYSQL_ROOT_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: mysql-secret
+                key: mysql-root-password
+          - name: DB_USERNAME
+            valueFrom:
+              configMapKeyRef:
+                name: mysql-config
+                key: mysql-db-user
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 80
+          protocol: TCP
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-app
+  namespace: flask-app
+spec:
+  selector:
+    name: flask-app
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: flask
+      name: flask-svc
